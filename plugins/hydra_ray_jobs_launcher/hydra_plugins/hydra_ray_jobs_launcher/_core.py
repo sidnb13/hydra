@@ -83,11 +83,11 @@ def launch(
         # Construct full path to entrypoint python
         entrypoint_file = os.path.join(
             sweep_config.hydra.runtime.config_sources[1].path,
-            sweep_config.hydra.launcher.entrypoint,
+            sweep_config.hydra.job.name,
         )
-
-        entrypoint = f"python {entrypoint_file}"
-
+        
+        entrypoint = f"python {entrypoint_file}.py"
+        
         override_args = " ".join(
             [f"'{override}'" for override in filter_overrides(overrides)]
         )
@@ -108,7 +108,7 @@ def launch(
         jobs.append(launcher.client.get_job_info(job_id))
 
         log.info(f"Submitted job: {job_id}")
-        log.info(f"\t#{idx+1} : {sweep_config.hydra.launcher.entrypoint}")
+        log.info(f"\t#{idx+1} : {sweep_config.hydra.job.name} : {' '.join(filter_overrides(overrides))}")
 
         ret = JobReturn()
         ret.working_dir = str(sweep_dir)
