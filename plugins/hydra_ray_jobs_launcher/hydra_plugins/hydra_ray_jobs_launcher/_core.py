@@ -1,11 +1,11 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import logging
 import os
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, Sequence
 
 from omegaconf import DictConfig
-from ray.job_submission import JobInfo
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.core.singleton import Singleton
@@ -61,19 +61,25 @@ def launch(
     assert launcher.task_function is not None
     assert launcher.hydra_context is not None
 
+    # Default to sync mode for test compatibility
+    sync_mode = launcher.config.hydra.launcher.poll_jobs
+
     configure_log(launcher.config.hydra.hydra_logging, launcher.config.hydra.verbose)
     sweep_dir = Path(str(launcher.config.hydra.sweep.dir))
     sweep_dir.mkdir(parents=True, exist_ok=True)
 
-    jobs: List[JobInfo] = []
     log.info(f"Ray Job Launcher is enqueuing {len(job_overrides)} job(s) in queue")
     log.info(f"Sweep output dir : {sweep_dir}")
     if not sweep_dir.is_absolute():
         log.warning(
             "Using relative sweep dir: Please be aware that dir will be relative to where workers are started from."
         )
+    if sync_mode:
+        log.info(
+            "Running jobs in synchronous mode. Entrypoint will block until all jobs complete."
+        )
 
-    async_runs: List[JobStatus] = []
+    pending_jobs, completed_runs = [], []
 
     for idx, overrides in enumerate(job_overrides, start=initial_job_idx):
         sweep_config = launcher.hydra_context.config_loader.load_sweep_config(
@@ -85,9 +91,9 @@ def launch(
             sweep_config.hydra.runtime.config_sources[1].path,
             sweep_config.hydra.job.name,
         )
-        
+
         entrypoint = f"python {entrypoint_file}.py"
-        
+
         override_args = " ".join(
             [f"'{override}'" for override in filter_overrides(overrides)]
         )
@@ -105,15 +111,54 @@ def launch(
             },
         )
 
-        jobs.append(launcher.client.get_job_info(job_id))
+        pending_jobs.append(
+            {
+                "job_id": job_id,
+                "sweep_config": sweep_config,
+                "overrides": overrides,
+                "idx": idx,
+            }
+        )
 
         log.info(f"Submitted job: {job_id}")
-        log.info(f"\t#{idx+1} : {sweep_config.hydra.job.name} : {' '.join(filter_overrides(overrides))}")
+        log.info(
+            f"\t#{idx+1} : {sweep_config.hydra.job.name} : {' '.join(filter_overrides(overrides))}"
+        )
 
-        ret = JobReturn()
-        ret.working_dir = str(sweep_dir)
-        ret.status = JobStatus.COMPLETED  # Mark as completed since we're not waiting
-        async_runs.append(ret)
-        async_runs.append(ret)
+    if sync_mode:
+        # Monitor jobs until all complete
+        while pending_jobs:
+            # Check each pending job
+            for job in pending_jobs[:]:  # Create copy to allow removal during iteration
+                job_info = launcher.client.get_job_info(job["job_id"])
 
-    return async_runs
+                if job_info.status in ["FAILED", "STOPPED", "SUCCEEDED"]:
+                    ret = JobReturn()
+                    ret.working_dir = str(sweep_dir / str(job["job_id"]))
+                    ret.overrides = list(job["overrides"])
+
+                    if job_info.status == "SUCCEEDED":
+                        ret.status = JobStatus.COMPLETED
+                    else:
+                        ret.status = JobStatus.FAILED
+
+                    completed_runs.append(ret)
+                    pending_jobs.remove(job)
+                    log.info(
+                        f"Job {job['job_id']} completed with status: {job_info.status}"
+                    )
+
+            if pending_jobs:
+                time.sleep(launcher.config.hydra.launcher.poll_jobs)
+    else:
+        # Original async behavior
+        for job in pending_jobs:
+            ret = JobReturn()
+            ret.working_dir = str(sweep_dir)
+            ret.overrides = list(job["overrides"])
+            ret.status = JobStatus.COMPLETED
+            completed_runs.append(ret)
+
+    # Sort by original index to maintain order
+    completed_runs.sort(key=lambda x: job_overrides.index(x.overrides))
+    return completed_runs

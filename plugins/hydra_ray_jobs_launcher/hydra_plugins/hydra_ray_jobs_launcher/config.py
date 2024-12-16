@@ -10,6 +10,8 @@ class RayJobsLauncherConf:
     _target_: str = (
         "hydra_plugins.hydra_ray_jobs_launcher.ray_jobs_launcher.RayJobsLauncher"
     )
+    poll_jobs: bool = True
+    poll_interval: float = 0.5
     entrypoint: Optional[str] = None
     address: str = "http://127.0.0.1:8265"  # Ray Dashboard address
     working_dir: Optional[str] = None
