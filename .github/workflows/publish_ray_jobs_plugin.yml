@@ -1,9 +1,11 @@
 name: Publish Ray Jobs Plugin
 
 on:
+  workflow_dispatch:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths:
+      - "plugins/hydra_ray_jobs_plugin/**"
 
 jobs:
   publish:
