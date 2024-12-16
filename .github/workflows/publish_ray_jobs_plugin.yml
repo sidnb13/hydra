@@ -8,7 +8,7 @@ on:
       - "plugins/hydra_ray_jobs_plugin/**"
 
 jobs:
-  publish:
+  ray_jobs_plugin_publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
