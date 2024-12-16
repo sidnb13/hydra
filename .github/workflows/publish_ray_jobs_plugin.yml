@@ -27,7 +27,17 @@ jobs:
       - name: Build package
         run: cd plugins/hydra_ray_jobs_launcher && python -m build
 
-      - name: Publish to GitHub Packages
+      - name: Publish to Test PyPI
+        continue-on-error: true
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
         run: |
-          cd plugins/hydra_ray_jobs_launcher && python -m twine upload --repository-url https://maven.pkg.github.com/${{ github.repository }} dist/* \
-          -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+          cd plugins/hydra_ray_jobs_launcher && python -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          cd plugins/hydra_ray_jobs_launcher && python -m twine upload dist/*
