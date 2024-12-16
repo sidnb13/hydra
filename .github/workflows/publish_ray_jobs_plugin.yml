@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "plugins/hydra_ray_jobs_plugin/**"
+      - "plugins/hydra_ray_jobs_launcher/**"
 
 jobs:
   ray_jobs_plugin_publish:
@@ -25,9 +25,9 @@ jobs:
         run: pip install build twine
 
       - name: Build package
-        run: cd plugins/hydra_ray_jobs_plugin && python -m build
+        run: cd plugins/hydra_ray_jobs_launcher && python -m build
 
       - name: Publish to GitHub Packages
         run: |
-          cd plugins/hydra_ray_jobs_plugin && python -m twine upload --repository-url https://maven.pkg.github.com/${{ github.repository }} dist/* \
+          cd plugins/hydra_ray_jobs_launcher && python -m twine upload --repository-url https://maven.pkg.github.com/${{ github.repository }} dist/* \
           -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
