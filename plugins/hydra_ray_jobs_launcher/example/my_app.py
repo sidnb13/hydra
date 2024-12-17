@@ -10,11 +10,13 @@ import hydra
 log = logging.getLogger(__name__)
 
 
-@hydra.main(config_name="config", config_path=".", version_base=None)
+@hydra.main(config_name="config", config_path="config", version_base=None)
 def my_app(cfg: DictConfig) -> None:
     log.info(f"Process ID {os.getpid()} executing task {cfg.task} ...")
 
     time.sleep(1)
+    if cfg.bruh == 3:
+        raise RuntimeError("This is a test error")
 
 
 if __name__ == "__main__":

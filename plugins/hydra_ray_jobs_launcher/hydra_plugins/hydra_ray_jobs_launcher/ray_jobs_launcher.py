@@ -1,5 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import logging
+import sys
 from typing import Any, Optional, Sequence
 
 from omegaconf import DictConfig, OmegaConf
@@ -37,6 +38,7 @@ class RayJobsLauncher(Launcher):
         self.config = config
         self.task_function = task_function
         self.hydra_context = hydra_context
+        self.original_invocation_path = sys.argv[0]
 
         self.client = JobSubmissionClient(
             self.client_conf.address, create_cluster_if_needed=True

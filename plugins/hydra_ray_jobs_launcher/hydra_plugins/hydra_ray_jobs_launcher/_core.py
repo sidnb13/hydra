@@ -86,13 +86,7 @@ def launch(
             launcher.config, list(overrides)
         )
 
-        # Construct full path to entrypoint python
-        entrypoint_file = os.path.join(
-            sweep_config.hydra.runtime.config_sources[1].path,
-            sweep_config.hydra.job.name,
-        )
-
-        entrypoint = f"python {entrypoint_file}.py"
+        entrypoint = f"python {launcher.original_invocation_path}.py"
 
         override_args = " ".join(
             [f"'{override}'" for override in filter_overrides(overrides)]
@@ -141,6 +135,16 @@ def launch(
                         ret.status = JobStatus.COMPLETED
                     else:
                         ret.status = JobStatus.FAILED
+                        # Get error message from Ray logs
+                        try:
+                            error_logs = launcher.client.get_job_logs(job["job_id"])
+                            ret.return_value = RuntimeError(
+                                f"Ray job failed with status {job_info.status}. Logs:\n{error_logs}"
+                            )
+                        except Exception as e:
+                            ret.return_value = RuntimeError(
+                                f"Ray job failed with status {job_info.status}. Could not retrieve logs: {str(e)}"
+                            )
 
                     completed_runs.append(ret)
                     pending_jobs.remove(job)
