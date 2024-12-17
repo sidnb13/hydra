@@ -86,7 +86,10 @@ def launch(
             launcher.config, list(overrides)
         )
 
-        entrypoint = f"python {launcher.original_invocation_path}.py"
+        entrypoint_file = os.path.join(
+            sweep_config.hydra.runtime.cwd, launcher.original_invocation_path
+        )
+        entrypoint = f"python {entrypoint_file}"
 
         override_args = " ".join(
             [f"'{override}'" for override in filter_overrides(overrides)]

@@ -15,8 +15,9 @@ def my_app(cfg: DictConfig) -> None:
     log.info(f"Process ID {os.getpid()} executing task {cfg.task} ...")
 
     time.sleep(1)
+
     if cfg.bruh == 3:
-        raise RuntimeError("This is a test error")
+        exit(1)
 
 
 if __name__ == "__main__":
