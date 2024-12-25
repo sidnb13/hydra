@@ -40,9 +40,14 @@ class RayJobsLauncher(Launcher):
         self.hydra_context = hydra_context
         self.original_invocation_path = sys.argv[0]
 
-        self.client = JobSubmissionClient(
-            self.client_conf.address, create_cluster_if_needed=True
-        )
+        try:
+            self.client = JobSubmissionClient(
+                address=self.client_conf.address, create_cluster_if_needed=True
+            )
+        except ConnectionError as _:
+            self.client = JobSubmissionClient(
+                address="auto", create_cluster_if_needed=True
+            )
 
     def launch(
         self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int
