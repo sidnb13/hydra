@@ -8,4 +8,3 @@ hydra:
     entrypoint_num_cpus: 1  # Number of CPUs to reserve per job
     entrypoint_num_gpus: 0  # Number of GPUs to reserve per job
     entrypoint_memory: null # Memory to reserve per job (e.g. "1GB")
-    address: "http://127.0.0.1:8265"  # Ray Jobs API server address

@@ -13,7 +13,6 @@ class RayJobsLauncherConf:
     poll_jobs: bool = True
     poll_interval: float = 0.5
     entrypoint: Optional[str] = None
-    address: str = "http://127.0.0.1:8265"  # Ray Dashboard address
     working_dir: Optional[str] = None
     runtime_env: Optional[dict] = None
     job_id: Optional[str] = None

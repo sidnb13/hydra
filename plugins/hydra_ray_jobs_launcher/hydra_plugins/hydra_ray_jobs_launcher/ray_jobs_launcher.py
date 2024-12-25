@@ -3,6 +3,7 @@ import logging
 import sys
 from typing import Any, Optional, Sequence
 
+import ray
 from omegaconf import DictConfig, OmegaConf
 from ray.job_submission import JobSubmissionClient
 
@@ -40,14 +41,8 @@ class RayJobsLauncher(Launcher):
         self.hydra_context = hydra_context
         self.original_invocation_path = sys.argv[0]
 
-        try:
-            self.client = JobSubmissionClient(
-                address=self.client_conf.address, create_cluster_if_needed=True
-            )
-        except ConnectionError as _:
-            self.client = JobSubmissionClient(
-                address="auto", create_cluster_if_needed=True
-            )
+        ray.init(ignore_reinit_error=True)
+        self.client = JobSubmissionClient("auto")
 
     def launch(
         self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int

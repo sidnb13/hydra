@@ -62,7 +62,6 @@ class TestRayJobsLauncherIntegration(IntegrationTestSuite):
         [],  # Test with defaults
         ["hydra.launcher.entrypoint_num_cpus=2"],  # Test with custom CPU allocation
         ["hydra.launcher.entrypoint_num_gpus=1"],  # Test with GPU request
-        ["hydra.launcher.address=http://localhost:8265"],  # Test with custom address
     ],
 )
 def test_example_app(

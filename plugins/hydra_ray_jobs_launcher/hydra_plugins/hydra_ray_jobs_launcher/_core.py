@@ -124,36 +124,73 @@ def launch(
 
     if sync_mode:
         # Monitor jobs until all complete
+        job_seen_logs = {}  # Track logs we've already seen for each job
         while pending_jobs:
             # Check each pending job
             for job in pending_jobs[:]:  # Create copy to allow removal during iteration
                 job_info = launcher.client.get_job_info(job["job_id"])
+                job_id = job["job_id"]
+
+                # Trail logs for running jobs
+                if job_info.status in ["PENDING", "RUNNING"]:
+                    try:
+                        current_logs = launcher.client.get_job_logs(job_id)
+                        # Only show new logs
+                        if job_id not in job_seen_logs:
+                            job_seen_logs[job_id] = set()
+
+                        # Split logs into lines and show only new ones
+                        new_logs = []
+                        for line in current_logs.splitlines():
+                            line = line.strip()
+                            if line and line not in job_seen_logs[job_id]:
+                                new_logs.append(line)
+                                job_seen_logs[job_id].add(line)
+
+                        if new_logs:
+                            log.info(f"Job {job_id} logs:\n" + "\n".join(new_logs))
+                    except Exception as e:
+                        log.warning(f"Failed to get logs for job {job_id}: {str(e)}")
 
                 if job_info.status in ["FAILED", "STOPPED", "SUCCEEDED"]:
                     ret = JobReturn()
-                    ret.working_dir = str(sweep_dir / str(job["job_id"]))
+                    ret.working_dir = str(sweep_dir / str(job_id))
                     ret.overrides = list(job["overrides"])
+
+                    # Print final logs if job completed
+                    try:
+                        final_logs = launcher.client.get_job_logs(job_id)
+                        new_logs = []
+                        if job_id not in job_seen_logs:
+                            job_seen_logs[job_id] = set()
+
+                        for line in final_logs.splitlines():
+                            line = line.strip()
+                            if line and line not in job_seen_logs[job_id]:
+                                new_logs.append(line)
+                                job_seen_logs[job_id].add(line)
+
+                        if new_logs:
+                            log.info(
+                                f"Final logs for job {job_id}:\n" + "\n".join(new_logs)
+                            )
+                    except Exception as e:
+                        log.warning(
+                            f"Failed to get final logs for job {job_id}: {str(e)}"
+                        )
 
                     if job_info.status == "SUCCEEDED":
                         ret.status = JobStatus.COMPLETED
                     else:
                         ret.status = JobStatus.FAILED
-                        # Get error message from Ray logs
-                        try:
-                            error_logs = launcher.client.get_job_logs(job["job_id"])
-                            ret.return_value = RuntimeError(
-                                f"Ray job failed with status {job_info.status}. Logs:\n{error_logs}"
-                            )
-                        except Exception as e:
-                            ret.return_value = RuntimeError(
-                                f"Ray job failed with status {job_info.status}. Could not retrieve logs: {str(e)}"
-                            )
+                        ret.return_value = RuntimeError(
+                            f"Ray job failed with status {job_info.status}."
+                        )
 
                     completed_runs.append(ret)
                     pending_jobs.remove(job)
-                    log.info(
-                        f"Job {job['job_id']} completed with status: {job_info.status}"
-                    )
+                    job_seen_logs.pop(job_id, None)  # Clean up tracking
+                    log.info(f"Job {job_id} completed with status: {job_info.status}")
 
             if pending_jobs:
                 time.sleep(launcher.config.hydra.launcher.poll_jobs)
