@@ -119,7 +119,7 @@ def launch(
             }
         )
 
-        log.info(f"Submitted job: {job_id}")
+        log.info(f"Submitted job: {job_id} under python executable: {python_path}")
         log.info(
             f"\t#{idx + 1} : {sweep_config.hydra.job.name} : {' '.join(filter_overrides(overrides))}"
         )
