@@ -1,6 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, Sequence
@@ -89,7 +90,8 @@ def launch(
         entrypoint_file = os.path.join(
             sweep_config.hydra.runtime.cwd, launcher.original_invocation_path
         )
-        entrypoint = f"python {entrypoint_file}"
+        python_path = sweep_config.hydra.launcher.get("python_path", sys.executable)
+        entrypoint = f"{python_path} {entrypoint_file}"
 
         override_args = " ".join(
             [f"'{override}'" for override in filter_overrides(overrides)]
@@ -119,7 +121,7 @@ def launch(
 
         log.info(f"Submitted job: {job_id}")
         log.info(
-            f"\t#{idx+1} : {sweep_config.hydra.job.name} : {' '.join(filter_overrides(overrides))}"
+            f"\t#{idx + 1} : {sweep_config.hydra.job.name} : {' '.join(filter_overrides(overrides))}"
         )
 
     if sync_mode:
