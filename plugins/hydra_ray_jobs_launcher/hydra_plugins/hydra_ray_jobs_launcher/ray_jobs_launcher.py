@@ -41,8 +41,28 @@ class RayJobsLauncher(Launcher):
         self.hydra_context = hydra_context
         self.original_invocation_path = sys.argv[0]
 
-        ray.init(ignore_reinit_error=True)
-        self.client = JobSubmissionClient("auto")
+        ray_address = self.config.hydra.launcher.get("ray_address", None)
+
+        if ray_address:
+            # For dashboard URLs, extract the address information
+            if ray_address.startswith("http://"):
+                # Convert http://127.0.0.1:8275 to 127.0.0.1:6379
+                # Ray typically uses port 6379 for client connections
+                host = ray_address.split("://")[1].split(":")[0]
+                ray_client_address = f"{host}:6379"  # Default Ray client port
+                log.info(f"Connecting to existing Ray cluster at: {ray_client_address}")
+                ray.init(address=ray_client_address, ignore_reinit_error=True)
+                # Still use the dashboard URL for the JobSubmissionClient
+                self.client = JobSubmissionClient(ray_address)
+            else:
+                # For direct ray:// addresses
+                log.info(f"Connecting to existing Ray cluster at: {ray_address}")
+                ray.init(address=ray_address, ignore_reinit_error=True)
+                self.client = JobSubmissionClient(ray_address)
+        else:
+            log.info("Initializing Ray locally")
+            ray.init(ignore_reinit_error=True)
+            self.client = JobSubmissionClient("auto")
 
     def launch(
         self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int

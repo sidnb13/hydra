@@ -90,7 +90,7 @@ def launch(
         entrypoint_file = os.path.join(
             sweep_config.hydra.runtime.cwd, launcher.original_invocation_path
         )
-        python_path = sweep_config.hydra.launcher.get("python_path", sys.executable)
+        python_path = sweep_config.hydra.launcher.python_path or sys.executable
         entrypoint = f"{python_path} {entrypoint_file}"
 
         override_args = " ".join(
@@ -104,7 +104,6 @@ def launch(
             runtime_env=sweep_config.hydra.launcher.runtime_env,
             entrypoint_num_gpus=sweep_config.hydra.launcher.entrypoint_num_gpus,
             entrypoint_num_cpus=sweep_config.hydra.launcher.entrypoint_num_cpus,
-            entrypoint_memory=sweep_config.hydra.launcher.entrypoint_memory,
             metadata={
                 "description": " ".join(filter_overrides(overrides)),
             },

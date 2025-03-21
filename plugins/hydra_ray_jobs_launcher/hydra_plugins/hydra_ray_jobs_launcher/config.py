@@ -19,8 +19,8 @@ class RayJobsLauncherConf:
     metadata: Optional[dict] = None
     entrypoint_num_cpus: Optional[Union[int, float]] = None
     entrypoint_num_gpus: Optional[Union[int, float]] = None
-    entrypoint_memory: Optional[int] = None
     python_path: Optional[str] = None
+    ray_address: Optional[str] = None
 
 
 ConfigStore.instance().store(
