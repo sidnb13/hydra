@@ -1,0 +1,23 @@
+services:
+  hydra-ray:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8265:8265"  # Ray dashboard
+      - "6379:6379"  # Redis port
+      - "10001:10001"  # Ray client server port
+    volumes:
+      - .:/hydra  # Mount the entire Hydra directory
+      - ~/.ssh:/root/.ssh:ro  # Mount the entire SSH directory read-only
+    working_dir: /hydra
+    environment:
+      - GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=no
+    # Ultra simple command - just start Ray with minimal options
+    command: >
+      bash -c "
+        ray start --head --dashboard-host=0.0.0.0 --dashboard-port=8265 &&
+        tail -f /dev/null
+      "
+    tty: true
+    stdin_open: true
