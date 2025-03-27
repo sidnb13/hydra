@@ -180,7 +180,7 @@ def launch(
             ),
             metadata={
                 "description": " ".join(filter_overrides(overrides)),
-                "has_blockers": bool(active_blockers),
+                "has_blockers": str(active_blockers),
                 "lock_file": lock_file,
             },
         )
