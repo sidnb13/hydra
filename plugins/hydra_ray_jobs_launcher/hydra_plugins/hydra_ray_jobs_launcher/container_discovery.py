@@ -118,7 +118,7 @@ def launch_blocker_job(
             "--entrypoint-num-gpus",
             str(gpu_count),
             "--entrypoint-resources",
-            f'{{"container_id": "{container_id}"}}',
+            f'{{"{container_id}": {gpu_count}}}',
             "--",
             "python",
             shared_script_path,

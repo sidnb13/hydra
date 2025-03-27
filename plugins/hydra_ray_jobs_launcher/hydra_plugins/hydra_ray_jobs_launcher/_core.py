@@ -166,7 +166,7 @@ def launch(
                         }
                     )
                 else:
-                    log.error(
+                    raise RuntimeError(
                         f"Failed to launch blocker on container {container['name']}: {blocker_result['error']}"
                     )
 
