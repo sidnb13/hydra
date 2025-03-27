@@ -98,42 +98,19 @@ def launch_blocker_job(
 
         script_source = inspect.getsource(blocking_script)
 
-        # Create a temporary script file on the host
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp:
-            temp.write(script_source)
-            temp_script_path = temp.name
+        # Create the script in the shared lock directory
+        shared_dir = "/root/ray_lockfiles"
+        shared_script_path = os.path.join(shared_dir, f"blocker_{job_id}.py")
 
-        # Docker cp command to copy the script to the container
-        container_script_path = f"/tmp/blocker_{job_id}.py"
-        cp_cmd = [
-            "docker",
-            "cp",
-            temp_script_path,
-            f"{container_id}:{container_script_path}",
-        ]
+        # Write the script to the shared location
+        log.info(f"Creating blocker script at shared location: {shared_script_path}")
+        with open(shared_script_path, "w") as f:
+            f.write(script_source)
 
-        log.debug(f"Copying blocker script to container {container_id}")
-        cp_result = subprocess.run(
-            cp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
+        # Make it executable
+        os.chmod(shared_script_path, 0o755)
 
-        # Clean up the temporary file
-        try:
-            os.unlink(temp_script_path)
-        except:
-            pass
-
-        if cp_result.returncode != 0:
-            log.error(
-                f"Failed to copy blocker script to container {container_id}: {cp_result.stderr}"
-            )
-            return {
-                "container_id": container_id,
-                "success": False,
-                "error": cp_result.stderr,
-            }
-
-        # Build ray job submit command
+        # Build ray job submit command for the target container
         cmd = [
             "ray",
             "job",
@@ -144,7 +121,7 @@ def launch_blocker_job(
             f'{{"container_id": "{container_id}"}}',
             "--",
             "python",
-            container_script_path,
+            shared_script_path,
             "--lock-file",
             lock_file,
             "--polling-interval",
@@ -155,7 +132,7 @@ def launch_blocker_job(
             job_id,
         ]
 
-        log.debug(f"Launching blocker on container {container_id}: {' '.join(cmd)}")
+        log.info(f"Launching blocker on container {container_id}: {' '.join(cmd)}")
 
         # Execute the command
         result = subprocess.run(
@@ -182,7 +159,7 @@ def launch_blocker_job(
         return {
             "container_id": container_id,
             "blocker_job_id": blocker_job_id,
-            "script_path": container_script_path,
+            "script_path": shared_script_path,
             "success": True,
         }
     except Exception as e:

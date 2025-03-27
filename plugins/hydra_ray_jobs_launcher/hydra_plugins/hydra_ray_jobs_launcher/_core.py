@@ -21,7 +21,11 @@ from hydra.core.utils import (
 )
 from hydra.types import HydraContext, TaskFunction
 
-from .container_discovery import discover_project_containers, launch_blocker_job
+from .container_discovery import (
+    discover_project_containers,
+    get_current_container_id,
+    launch_blocker_job,
+)
 from .ray_jobs_launcher import RayJobsLauncher
 
 log = logging.getLogger(__name__)
@@ -96,8 +100,13 @@ def launch(
     other_containers = []
     if enable_blocking:
         log.debug("GPU blocking mode enabled")
-        other_containers = discover_project_containers()
-        log.debug(f"Found {len(other_containers)} other containers for blocking")
+        current_container_id = get_current_container_id()
+        other_containers = discover_project_containers(
+            exclude_ray=True, current_container_id=current_container_id
+        )
+        log.info(
+            f"Found {len(other_containers)} other containers for blocking (excluding current)"
+        )
     else:
         log.debug("GPU blocking mode disabled")
 
@@ -157,8 +166,8 @@ def launch(
                         }
                     )
                 else:
-                    log.warning(
-                        f"Failed to launch blocker on container {container['name']}"
+                    log.error(
+                        f"Failed to launch blocker on container {container['name']}: {blocker_result['error']}"
                     )
 
         job_id = launcher.client.submit_job(
