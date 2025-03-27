@@ -117,6 +117,7 @@ def launch_blocker_job(
             "ray",
             "job",
             "submit",
+            "--no-wait",
             "--entrypoint-num-gpus",
             str(gpu_count),
             "--entrypoint-resources",

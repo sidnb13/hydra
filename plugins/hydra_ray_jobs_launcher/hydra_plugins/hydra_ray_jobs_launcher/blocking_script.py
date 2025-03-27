@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -31,7 +32,15 @@ def main():
     parser.add_argument("--job-id", type=str, help="ID of the job we're blocking for")
     args = parser.parse_args()
 
+    # Print diagnostic info at startup
+    log.info(f"Script location: {__file__}")
+    log.info(f"Current directory: {os.getcwd()}")
+    log.info(f"Python executable: {sys.executable}")
+    log.info(f"Ray lockfiles directory exists: {os.path.exists('/root/ray_lockfiles')}")
+
     lock_path = Path(args.lock_file)
+    log.info(f"Lock file path: {lock_path}")
+    log.info(f"Lock file exists: {lock_path.exists()}")
 
     log.info(f"Starting GPU blocker for {args.gpu_count} GPUs (job: {args.job_id})")
     log.info(f"Monitoring lock file: {lock_path}")
@@ -52,7 +61,3 @@ def main():
 
     log.info("Blocker exiting normally")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
