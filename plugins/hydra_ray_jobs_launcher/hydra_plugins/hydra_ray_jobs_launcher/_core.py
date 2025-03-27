@@ -3,10 +3,11 @@ import logging
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Sequence
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.core.singleton import Singleton
@@ -20,6 +21,7 @@ from hydra.core.utils import (
 )
 from hydra.types import HydraContext, TaskFunction
 
+from .container_discovery import discover_project_containers, launch_blocker_job
 from .ray_jobs_launcher import RayJobsLauncher
 
 log = logging.getLogger(__name__)
@@ -69,18 +71,35 @@ def launch(
     sweep_dir = Path(str(launcher.config.hydra.sweep.dir))
     sweep_dir.mkdir(parents=True, exist_ok=True)
 
+    # Dedicated shared directory for lock files
+    lockfile_dir = Path("/root/ray_lockfiles")
+    lockfile_dir.mkdir(parents=True, exist_ok=True)
+
     log.info(f"Ray Job Launcher is enqueuing {len(job_overrides)} job(s) in queue")
-    log.info(f"Sweep output dir : {sweep_dir}")
+    log.debug(f"Sweep output dir : {sweep_dir}")
+    log.debug(f"Lockfile dir for GPU coordination: {lockfile_dir}")
+
     if not sweep_dir.is_absolute():
         log.warning(
             "Using relative sweep dir: Please be aware that dir will be relative to where workers are started from."
         )
     if sync_mode:
-        log.info(
+        log.debug(
             "Running jobs in synchronous mode. Entrypoint will block until all jobs complete."
         )
 
     pending_jobs, completed_runs = [], []
+
+    # Check if GPU blocking is enabled in the config
+    enable_blocking = launcher.config.hydra.launcher.get("enable_gpu_blocking", False)
+    # Discover other containers if blocking is enabled
+    other_containers = []
+    if enable_blocking:
+        log.debug("GPU blocking mode enabled")
+        other_containers = discover_project_containers()
+        log.debug(f"Found {len(other_containers)} other containers for blocking")
+    else:
+        log.debug("GPU blocking mode disabled")
 
     for idx, overrides in enumerate(job_overrides, start=initial_job_idx):
         sweep_config = launcher.hydra_context.config_loader.load_sweep_config(
@@ -99,13 +118,61 @@ def launch(
         if override_args:
             entrypoint = f"{entrypoint} {override_args}"
 
+        # Create a lock file for this job if blocking is enabled
+        lock_file = None
+        active_blockers = []
+        if enable_blocking and other_containers:
+            # Determine GPU count to block - default to config value or 1
+            gpu_count = sweep_config.hydra.launcher.get("entrypoint_num_gpus", 1)
+
+            # Create lock file for coordination
+            lock_id = str(uuid.uuid4())
+            lock_file = str(lockfile_dir / f"gpu_lock_{lock_id}.lock")
+            with open(lock_file, "w") as f:
+                f.write(f"LOCK:{str(idx)}\n")
+
+            log.debug(f"Created GPU lock file: {lock_file} for {gpu_count} GPUs")
+
+            # Launch blockers on other containers before submitting the main job
+            for container in other_containers:
+                blocker_result = launch_blocker_job(
+                    container_id=container["id"],
+                    lock_file=lock_file,
+                    job_id=str(idx),  # We don't have the Ray job ID yet
+                    gpu_count=gpu_count,
+                    polling_interval=sweep_config.hydra.launcher.get(
+                        "poll_interval", 1.0
+                    ),
+                )
+
+                if blocker_result["success"]:
+                    log.info(
+                        f"Successfully launched blocker on container {container['name']}"
+                    )
+                    active_blockers.append(
+                        {
+                            "container": container,
+                            "blocker_info": blocker_result,
+                            "gpu_count": gpu_count,
+                        }
+                    )
+                else:
+                    log.warning(
+                        f"Failed to launch blocker on container {container['name']}"
+                    )
+
         job_id = launcher.client.submit_job(
             entrypoint=entrypoint,
             runtime_env=sweep_config.hydra.launcher.runtime_env,
             entrypoint_num_gpus=sweep_config.hydra.launcher.entrypoint_num_gpus,
             entrypoint_num_cpus=sweep_config.hydra.launcher.entrypoint_num_cpus,
+            entrypoint_resources=OmegaConf.to_container(
+                sweep_config.hydra.launcher.entrypoint_resources
+            ),
             metadata={
                 "description": " ".join(filter_overrides(overrides)),
+                "has_blockers": bool(active_blockers),
+                "lock_file": lock_file,
             },
         )
 
@@ -115,6 +182,8 @@ def launch(
                 "sweep_config": sweep_config,
                 "overrides": overrides,
                 "idx": idx,
+                "lock_file": lock_file,
+                "active_blockers": active_blockers,
             }
         )
 
@@ -180,6 +249,16 @@ def launch(
                             f"Failed to get final logs for job {job_id}: {str(e)}"
                         )
 
+                    # Release GPU resources by removing the lock file
+                    if job["lock_file"] and os.path.exists(job["lock_file"]):
+                        try:
+                            log.info(
+                                f"Removing lock file to release GPU resources: {job['lock_file']}"
+                            )
+                            os.remove(job["lock_file"])
+                        except Exception as e:
+                            log.warning(f"Failed to remove lock file: {str(e)}")
+
                     if job_info.status == "SUCCEEDED":
                         ret.status = JobStatus.COMPLETED
                     else:
@@ -203,6 +282,14 @@ def launch(
             ret.overrides = list(job["overrides"])
             ret.status = JobStatus.COMPLETED
             completed_runs.append(ret)
+
+            # Remove lock file if it exists
+            if job["lock_file"] and os.path.exists(job["lock_file"]):
+                try:
+                    log.info(f"Removing lock file in async mode: {job['lock_file']}")
+                    os.remove(job["lock_file"])
+                except Exception as e:
+                    log.warning(f"Failed to remove lock file: {str(e)}")
 
     # Sort by original index to maintain order
     completed_runs.sort(key=lambda x: job_overrides.index(x.overrides))

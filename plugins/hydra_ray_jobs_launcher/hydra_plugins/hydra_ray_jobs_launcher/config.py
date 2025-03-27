@@ -1,5 +1,5 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Union
 
 from hydra.core.config_store import ConfigStore
@@ -19,8 +19,10 @@ class RayJobsLauncherConf:
     metadata: Optional[dict] = None
     entrypoint_num_cpus: Optional[Union[int, float]] = None
     entrypoint_num_gpus: Optional[Union[int, float]] = None
+    entrypoint_resources: Optional[dict] = field(default=None)
     python_path: Optional[str] = None
     ray_address: Optional[str] = None
+    enable_gpu_blocking: bool = False
 
 
 ConfigStore.instance().store(
