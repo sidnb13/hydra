@@ -146,8 +146,11 @@ def launch(
             for container in other_containers:
                 blocker_result = launch_blocker_job(
                     container_id=container["id"],
+                    container_name=container[
+                        "name"
+                    ],  # Use the container name for Ray resources
                     lock_file=lock_file,
-                    job_id=str(idx),  # We don't have the Ray job ID yet
+                    job_id=str(idx),
                     gpu_count=gpu_count,
                     polling_interval=sweep_config.hydra.launcher.get(
                         "poll_interval", 1.0

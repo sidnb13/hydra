@@ -86,6 +86,7 @@ def discover_project_containers(exclude_ray=True, current_container_id=None):
 
 def launch_blocker_job(
     container_id: str,
+    container_name: str,
     lock_file: str,
     job_id: str,
     gpu_count: int,
@@ -111,6 +112,7 @@ def launch_blocker_job(
         os.chmod(shared_script_path, 0o755)
 
         # Build ray job submit command for the target container
+        # Use container_name instead of ID for resources
         cmd = [
             "ray",
             "job",
@@ -118,7 +120,7 @@ def launch_blocker_job(
             "--entrypoint-num-gpus",
             str(gpu_count),
             "--entrypoint-resources",
-            f'{{"{container_id}": {gpu_count}}}',
+            f'{{"{container_name}": {gpu_count}}}',
             "--",
             "python",
             shared_script_path,
@@ -132,7 +134,7 @@ def launch_blocker_job(
             job_id,
         ]
 
-        log.info(f"Launching blocker on container {container_id}: {' '.join(cmd)}")
+        log.info(f"Launching blocker on container {container_name}: {' '.join(cmd)}")
 
         # Execute the command
         result = subprocess.run(
@@ -141,10 +143,11 @@ def launch_blocker_job(
 
         if result.returncode != 0:
             log.error(
-                f"Failed to launch blocker on container {container_id}: {result.stderr}"
+                f"Failed to launch blocker on container {container_name}: {result.stderr}"
             )
             return {
                 "container_id": container_id,
+                "container_name": container_name,
                 "success": False,
                 "error": result.stderr,
             }
@@ -158,10 +161,16 @@ def launch_blocker_job(
 
         return {
             "container_id": container_id,
+            "container_name": container_name,
             "blocker_job_id": blocker_job_id,
             "script_path": shared_script_path,
             "success": True,
         }
     except Exception as e:
-        log.error(f"Error launching blocker on container {container_id}: {str(e)}")
-        return {"container_id": container_id, "success": False, "error": str(e)}
+        log.error(f"Error launching blocker on container {container_name}: {str(e)}")
+        return {
+            "container_id": container_id,
+            "container_name": container_name,
+            "success": False,
+            "error": str(e),
+        }
