@@ -185,6 +185,7 @@ def launch(
                 "description": " ".join(filter_overrides(overrides)),
                 "has_blockers": str(active_blockers),
                 "lock_file": lock_file,
+                "sync_mode": sync_mode,  # Add this so job knows whether launcher will clean up
             },
         )
 
@@ -261,16 +262,6 @@ def launch(
                             f"Failed to get final logs for job {job_id}: {str(e)}"
                         )
 
-                    # Release GPU resources by removing the lock file
-                    if job["lock_file"] and os.path.exists(job["lock_file"]):
-                        try:
-                            log.info(
-                                f"Removing lock file to release GPU resources: {job['lock_file']}"
-                            )
-                            os.remove(job["lock_file"])
-                        except Exception as e:
-                            log.warning(f"Failed to remove lock file: {str(e)}")
-
                     if job_info.status == "SUCCEEDED":
                         ret.status = JobStatus.COMPLETED
                     else:
@@ -294,14 +285,6 @@ def launch(
             ret.overrides = list(job["overrides"])
             ret.status = JobStatus.COMPLETED
             completed_runs.append(ret)
-
-            # Remove lock file if it exists
-            if job["lock_file"] and os.path.exists(job["lock_file"]):
-                try:
-                    log.info(f"Removing lock file in async mode: {job['lock_file']}")
-                    os.remove(job["lock_file"])
-                except Exception as e:
-                    log.warning(f"Failed to remove lock file: {str(e)}")
 
     # Sort by original index to maintain order
     completed_runs.sort(key=lambda x: job_overrides.index(x.overrides))

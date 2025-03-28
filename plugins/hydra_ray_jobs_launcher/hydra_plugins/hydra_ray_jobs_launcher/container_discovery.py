@@ -53,7 +53,7 @@ def discover_project_containers(exclude_ray=True, current_container_id=None):
     project_containers = []
     for container in containers:
         # Skip current container
-        if current_container_id and container.id.startswith(current_container_id):
+        if current_container_id and container.name.startswith(current_container_id):
             continue
 
         # Skip Ray containers if requested
@@ -89,30 +89,40 @@ def launch_blocker_job(
     container_name: str,
     lock_file: str,
     job_id: str,
+    main_job_id: str,
     gpu_count: int,
     polling_interval: float = 1.0,
 ) -> Dict[str, Any]:
     """Launch a blocker job on another container using ray job submit CLI"""
     try:
-        # Import the blocking_script module and get its source code
-        from . import blocking_script
-
-        script_source = inspect.getsource(blocking_script)
-
-        # Create the script in the shared lock directory
+        # Create the script in the shared lock directory (only if it doesn't exist)
         shared_dir = "/root/ray_lockfiles"
-        shared_script_path = os.path.join(shared_dir, f"blocker_{job_id}.py")
+        os.makedirs(shared_dir, exist_ok=True)
 
-        # Write the script to the shared location
-        log.info(f"Creating blocker script at shared location: {shared_script_path}")
-        with open(shared_script_path, "w") as f:
-            f.write(script_source)
+        shared_script_path = os.path.join(shared_dir, "ray_blocker.py")
 
-        # Make it executable
-        os.chmod(shared_script_path, 0o755)
+        # Only create the script if it doesn't exist
+        if not os.path.exists(shared_script_path):
+            # Import the blocking_script module and get its source code
+            from . import blocking_script
+
+            script_source = inspect.getsource(blocking_script)
+
+            # Write the script to the shared location
+            log.info(
+                f"Creating blocker script at shared location: {shared_script_path}"
+            )
+            with open(shared_script_path, "w") as f:
+                f.write(script_source)
+
+            # Make it executable
+            os.chmod(shared_script_path, 0o755)
+
+            log.info(f"Created blocker script: {shared_script_path}")
+        else:
+            log.info(f"Using existing blocker script: {shared_script_path}")
 
         # Build ray job submit command for the target container
-        # Use container_name instead of ID for resources
         cmd = [
             "ray",
             "job",
@@ -133,6 +143,8 @@ def launch_blocker_job(
             str(gpu_count),
             "--job-id",
             job_id,
+            "--main-job-id",
+            main_job_id,
         ]
 
         log.info(f"Launching blocker on container {container_name}: {' '.join(cmd)}")

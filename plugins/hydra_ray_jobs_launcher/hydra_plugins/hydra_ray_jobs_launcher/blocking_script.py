@@ -7,6 +7,8 @@ import sys
 import time
 from pathlib import Path
 
+from ray.job_submission import JobSubmissionClient
+
 logging.basicConfig(
     level=logging.INFO,
     format="[BLOCKER %(asctime)s] %(levelname)s: %(message)s",
@@ -30,6 +32,11 @@ def main():
         "--gpu-count", type=int, default=1, help="Number of GPUs being blocked"
     )
     parser.add_argument("--job-id", type=str, help="ID of the job we're blocking for")
+    parser.add_argument(
+        "--main-job-id",
+        type=str,
+        help="Ray job ID of the main job we're blocking for",
+    )
     args = parser.parse_args()
 
     # Print diagnostic info at startup
@@ -41,23 +48,63 @@ def main():
     lock_path = Path(args.lock_file)
     log.info(f"Lock file path: {lock_path}")
     log.info(f"Lock file exists: {lock_path.exists()}")
+    log.info(f"Main Ray job ID: {args.main_job_id}")
 
     log.info(f"Starting GPU blocker for {args.gpu_count} GPUs (job: {args.job_id})")
     log.info(f"Monitoring lock file: {lock_path}")
     log.info(f"Polling interval: {args.polling_interval}s")
 
-    # Keep running until lock file is removed
+    # Initialize Ray Job Client
+    client = JobSubmissionClient("auto")
+
+    # Keep running until lock file is removed or main job completes
     try:
-        while lock_path.exists():
-            log.debug(f"Lock file exists, continuing to block {args.gpu_count} GPUs")
+        while True:
+            if not lock_path.exists():
+                log.info(f"Lock file removed, releasing {args.gpu_count} GPU resources")
+                break
+
+            if args.main_job_id:
+                try:
+                    job_info = client.get_job_info(args.main_job_id)
+                    status = job_info.status
+
+                    log.debug(f"Main job status: {status}")
+
+                    if status in ["FAILED", "STOPPED", "SUCCEEDED", "PENDING"]:
+                        log.info(f"Main job completed with status: {status}")
+                        # Remove lock file ourselves to clean up
+                        try:
+                            if lock_path.exists():
+                                os.remove(lock_path)
+                                log.info(f"Removed lock file: {lock_path}")
+                        except Exception as e:
+                            log.warning(f"Failed to remove lock file: {str(e)}")
+                        break
+                except Exception as e:
+                    log.warning(f"Failed to check job status: {str(e)}")
+                    # If we can't check the job status, fall back to lock file check
+
+            # Sleep before checking again
             time.sleep(args.polling_interval)
 
-        log.info(f"Lock file removed, releasing {args.gpu_count} GPU resources")
     except KeyboardInterrupt:
         log.info("Blocker interrupted by user")
     except Exception as e:
         log.error(f"Error in blocker: {str(e)}")
         return 1
+    finally:
+        # Try to remove lock file on exit if it exists
+        try:
+            if lock_path.exists():
+                os.remove(lock_path)
+                log.info(f"Removed lock file during cleanup: {lock_path}")
+        except Exception as e:
+            log.warning(f"Failed to remove lock file during cleanup: {str(e)}")
 
     log.info("Blocker exiting normally")
     return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
