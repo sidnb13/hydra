@@ -127,6 +127,17 @@ def launch(
         if override_args:
             entrypoint = f"{entrypoint} {override_args}"
 
+        job_id = launcher.client.submit_job(
+            entrypoint=entrypoint,
+            runtime_env=sweep_config.hydra.launcher.runtime_env,
+            entrypoint_num_gpus=sweep_config.hydra.launcher.entrypoint_num_gpus,
+            entrypoint_num_cpus=sweep_config.hydra.launcher.entrypoint_num_cpus,
+            entrypoint_resources=OmegaConf.to_container(
+                sweep_config.hydra.launcher.entrypoint_resources
+            ),
+            metadata={"description": " ".join(filter_overrides(overrides))},
+        )
+
         # Create a lock file for this job if blocking is enabled
         lock_file = None
         active_blockers = []
@@ -151,6 +162,7 @@ def launch(
                     ],  # Use the container name for Ray resources
                     lock_file=lock_file,
                     job_id=str(idx),
+                    main_job_id=job_id,
                     gpu_count=gpu_count,
                     polling_interval=sweep_config.hydra.launcher.get(
                         "poll_interval", 1.0
@@ -172,22 +184,6 @@ def launch(
                     raise RuntimeError(
                         f"Failed to launch blocker on container {container['name']}: {blocker_result['error']}"
                     )
-
-        job_id = launcher.client.submit_job(
-            entrypoint=entrypoint,
-            runtime_env=sweep_config.hydra.launcher.runtime_env,
-            entrypoint_num_gpus=sweep_config.hydra.launcher.entrypoint_num_gpus,
-            entrypoint_num_cpus=sweep_config.hydra.launcher.entrypoint_num_cpus,
-            entrypoint_resources=OmegaConf.to_container(
-                sweep_config.hydra.launcher.entrypoint_resources
-            ),
-            metadata={
-                "description": " ".join(filter_overrides(overrides)),
-                "has_blockers": str(active_blockers),
-                "lock_file": lock_file,
-                "sync_mode": sync_mode,  # Add this so job knows whether launcher will clean up
-            },
-        )
 
         pending_jobs.append(
             {
