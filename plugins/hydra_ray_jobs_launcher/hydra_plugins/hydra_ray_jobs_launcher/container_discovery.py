@@ -96,7 +96,7 @@ def launch_blocker_job(
     """Launch a blocker job on another container using ray job submit CLI"""
     try:
         # Create the script in the shared lock directory (only if it doesn't exist)
-        shared_dir = "/tmp/ray_lockfiles"
+        shared_dir = "/root/ray_lockfiles"
         os.makedirs(shared_dir, exist_ok=True)
         shared_script_path = os.path.join(shared_dir, "ray_blocker.py")
 
