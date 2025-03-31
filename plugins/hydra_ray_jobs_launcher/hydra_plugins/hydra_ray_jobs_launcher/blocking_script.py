@@ -18,6 +18,8 @@ log = logging.getLogger("ray_blocker")
 
 
 def main():
+    start_time = time.time()  # Add start time tracking
+
     parser = argparse.ArgumentParser(description="Ray GPU resource blocker")
     parser.add_argument(
         "--lock-file", type=str, required=True, help="Path to lock file"
@@ -71,8 +73,8 @@ def main():
 
                     log.debug(f"Main job status: {status}")
 
-                    if status in ["FAILED", "STOPPED", "SUCCEEDED", "PENDING"]:
-                        log.info(f"Main job completed with status: {status}")
+                    if status in ["FAILED", "STOPPED", "SUCCEEDED"]:
+                        log.info(f"Main job exited with status: {status}")
                         # Remove lock file ourselves to clean up
                         try:
                             if lock_path.exists():
@@ -101,6 +103,10 @@ def main():
                 log.info(f"Removed lock file during cleanup: {lock_path}")
         except Exception as e:
             log.warning(f"Failed to remove lock file during cleanup: {str(e)}")
+
+        # Log the total execution time
+        elapsed_time = time.time() - start_time
+        log.info(f"Total execution time: {elapsed_time:.2f} seconds")
 
     log.info("Blocker exiting normally")
     return 0

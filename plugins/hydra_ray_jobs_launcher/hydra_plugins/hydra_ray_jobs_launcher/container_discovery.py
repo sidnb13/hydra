@@ -53,7 +53,7 @@ def discover_project_containers(exclude_ray=True, current_container_id=None):
     project_containers = []
     for container in containers:
         # Skip current container
-        if current_container_id and container.name.startswith(current_container_id):
+        if current_container_id and container.name == current_container_id:
             continue
 
         # Skip Ray containers if requested

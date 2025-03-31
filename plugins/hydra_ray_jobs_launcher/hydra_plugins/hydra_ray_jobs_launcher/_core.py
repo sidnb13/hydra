@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, Sequence
 
 from omegaconf import DictConfig, OmegaConf
+import ray
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.core.singleton import Singleton
@@ -127,14 +128,25 @@ def launch(
         if override_args:
             entrypoint = f"{entrypoint} {override_args}"
 
+        entrypoint_resources = OmegaConf.to_container(
+            sweep_config.hydra.launcher.entrypoint_resources
+        )
+        # Check for nonexistent resources in the cluster
+        cluster_resources = ray.cluster_resources()
+        if entrypoint_resources:
+            for resource_key in entrypoint_resources:
+                if resource_key not in cluster_resources:
+                    raise ValueError(
+                        f"Resource '{resource_key}' requested but not available in Ray cluster. "
+                        f"Available resources: {cluster_resources}"
+                    )
+
         job_id = launcher.client.submit_job(
             entrypoint=entrypoint,
             runtime_env=sweep_config.hydra.launcher.runtime_env,
             entrypoint_num_gpus=sweep_config.hydra.launcher.entrypoint_num_gpus,
             entrypoint_num_cpus=sweep_config.hydra.launcher.entrypoint_num_cpus,
-            entrypoint_resources=OmegaConf.to_container(
-                sweep_config.hydra.launcher.entrypoint_resources
-            ),
+            entrypoint_resources=entrypoint_resources,
             metadata={"description": " ".join(filter_overrides(overrides))},
         )
 
