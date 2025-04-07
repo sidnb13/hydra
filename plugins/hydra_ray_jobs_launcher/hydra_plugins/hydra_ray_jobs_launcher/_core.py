@@ -128,8 +128,10 @@ def launch(
         if override_args:
             entrypoint = f"{entrypoint} {override_args}"
 
-        entrypoint_resources = OmegaConf.to_container(
-            sweep_config.hydra.launcher.entrypoint_resources or {}
+        entrypoint_resources = (
+            OmegaConf.to_container(sweep_config.hydra.launcher.entrypoint_resources)
+            if sweep_config.hydra.launcher.entrypoint_resources
+            else {}
         )
         # Check for nonexistent resources in the cluster
         cluster_resources = ray.cluster_resources()
