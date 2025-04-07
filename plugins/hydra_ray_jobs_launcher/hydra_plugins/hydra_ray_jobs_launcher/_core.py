@@ -96,7 +96,7 @@ def launch(
     pending_jobs, completed_runs = [], []
 
     # Check if GPU blocking is enabled in the config
-    enable_blocking = launcher.config.hydra.launcher.get("enable_gpu_blocking", False)
+    enable_blocking = launcher.config.hydra.launcher.get("enable_blocking", False)
     # Discover other containers if blocking is enabled
     other_containers = []
     if enable_blocking:
@@ -129,7 +129,7 @@ def launch(
             entrypoint = f"{entrypoint} {override_args}"
 
         entrypoint_resources = OmegaConf.to_container(
-            sweep_config.hydra.launcher.entrypoint_resources
+            sweep_config.hydra.launcher.entrypoint_resources or {}
         )
         # Check for nonexistent resources in the cluster
         cluster_resources = ray.cluster_resources()
