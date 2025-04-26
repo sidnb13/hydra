@@ -309,12 +309,12 @@ def launch(
             completed_runs.append(ret)
 
     # Sort by original index to maintain order
+    _job_overrides_tuples = [tuple(j) for j in job_overrides]
+
     def _sort_fn(x):
-        overrides = x.overrides
-        if isinstance(overrides, list):
-            return job_overrides.index(tuple(overrides))
-        else:
-            return job_overrides.index(overrides)
+        # Normalize both to tuple for comparison
+        overrides = tuple(x.overrides)
+        return _job_overrides_tuples.index(overrides)
 
     completed_runs.sort(key=_sort_fn)
     return completed_runs
