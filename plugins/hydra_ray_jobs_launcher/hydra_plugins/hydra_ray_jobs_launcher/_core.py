@@ -7,8 +7,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Sequence
 
-from omegaconf import DictConfig, OmegaConf
 import ray
+from omegaconf import DictConfig, OmegaConf
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.core.singleton import Singleton
@@ -143,14 +143,26 @@ def launch(
                         f"Available resources: {cluster_resources}"
                     )
 
-        job_id = launcher.client.submit_job(
-            entrypoint=entrypoint,
-            runtime_env=sweep_config.hydra.launcher.runtime_env,
-            entrypoint_num_gpus=sweep_config.hydra.launcher.entrypoint_num_gpus,
-            entrypoint_num_cpus=sweep_config.hydra.launcher.entrypoint_num_cpus,
-            entrypoint_resources=entrypoint_resources,
-            metadata={"description": " ".join(filter_overrides(overrides))},
-        )
+        # Check if this is a dry run
+        if sweep_config.hydra.launcher.get("dryrun", False):
+            # Generate a random job ID similar to Ray's format for debugging
+            import random
+            import string
+
+            random_suffix = "".join(
+                random.choices(string.ascii_letters + string.digits, k=16)
+            )
+            job_id = f"raysubmit_{random_suffix}"
+            log.info(f"Dry run mode: would have submitted job with ID {job_id}")
+        else:
+            job_id = launcher.client.submit_job(
+                entrypoint=entrypoint,
+                runtime_env=sweep_config.hydra.launcher.runtime_env,
+                entrypoint_num_gpus=sweep_config.hydra.launcher.entrypoint_num_gpus,
+                entrypoint_num_cpus=sweep_config.hydra.launcher.entrypoint_num_cpus,
+                entrypoint_resources=entrypoint_resources,
+                metadata={"description": " ".join(filter_overrides(overrides))},
+            )
 
         # Create a lock file for this job if blocking is enabled
         lock_file = None
@@ -297,5 +309,12 @@ def launch(
             completed_runs.append(ret)
 
     # Sort by original index to maintain order
-    completed_runs.sort(key=lambda x: job_overrides.index(x.overrides))
+    def _sort_fn(x):
+        overrides = x.overrides
+        if isinstance(overrides, list):
+            return job_overrides.index(tuple(overrides))
+        else:
+            return job_overrides.index(overrides)
+
+    completed_runs.sort(key=_sort_fn)
     return completed_runs

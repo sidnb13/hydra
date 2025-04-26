@@ -23,6 +23,7 @@ class RayJobsLauncherConf:
     python_path: Optional[str] = None
     ray_address: Optional[str] = None
     enable_gpu_blocking: bool = False
+    dryrun: bool = False
 
 
 ConfigStore.instance().store(

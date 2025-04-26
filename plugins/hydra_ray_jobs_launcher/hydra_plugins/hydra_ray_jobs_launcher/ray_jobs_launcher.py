@@ -64,10 +64,87 @@ class RayJobsLauncher(Launcher):
             ray.init(ignore_reinit_error=True)
             self.client = JobSubmissionClient("auto")
 
+    def _check_for_breakpoints(self):
+        """Check for breakpoints in code that would crash Ray jobs"""
+        import inspect
+        import os
+        import re
+
+        log.info("Checking for breakpoints in code...")
+
+        # Get the module of the task function
+        if self.task_function is None:
+            log.warning("No task function available to check for breakpoints")
+            return
+
+        module = inspect.getmodule(self.task_function)
+        if module is None:
+            log.warning("Could not determine module of task function")
+            return
+
+        # Get the file path of the module
+        try:
+            file_path = inspect.getfile(module)
+        except TypeError:
+            log.warning("Could not determine file path of module")
+            return
+
+        # Define breakpoint patterns to search for
+        breakpoint_patterns = [
+            r"breakpoint\(\)",
+            r"pdb\.set_trace\(\)",
+            r"import pdb",
+            r"import ipdb",
+            r"ipdb\.set_trace\(\)",
+        ]
+
+        # Recursively check files starting from the entry point
+        checked_files = set()
+        files_to_check = [file_path]
+
+        breakpoints_found = False
+
+        while files_to_check:
+            current_file = files_to_check.pop()
+
+            if current_file in checked_files or not os.path.exists(current_file):
+                continue
+
+            checked_files.add(current_file)
+
+            try:
+                with open(current_file, "r") as f:
+                    content = f.read()
+
+                # Check for breakpoint patterns
+                line_number = 1
+                for line in content.split("\n"):
+                    for pattern in breakpoint_patterns:
+                        if re.search(pattern, line):
+                            log.warning(
+                                f"Potential breakpoint found in {current_file}:{line_number}: {line.strip()}"
+                            )
+                            breakpoints_found = True
+                    line_number += 1
+
+                # TODO: Optionally add logic to find imported modules and add them to files_to_check
+
+            except Exception as e:
+                log.warning(f"Error checking file {current_file}: {str(e)}")
+
+        if breakpoints_found:
+            log.warning(
+                "⚠️ Breakpoints detected! Ray jobs may crash. Please remove breakpoints before submitting jobs."
+            )
+        else:
+            log.info("No breakpoints detected.")
+
     def launch(
         self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int
     ) -> Sequence[JobReturn]:
         from . import _core
+
+        self._check_for_breakpoints()
 
         return _core.launch(
             launcher=self, job_overrides=job_overrides, initial_job_idx=initial_job_idx
