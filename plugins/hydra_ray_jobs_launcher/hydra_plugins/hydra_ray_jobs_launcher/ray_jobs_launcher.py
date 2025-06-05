@@ -133,11 +133,11 @@ class RayJobsLauncher(Launcher):
                 log.warning(f"Error checking file {current_file}: {str(e)}")
 
         if breakpoints_found:
-            log.warning(
-                "⚠️ Breakpoints detected! Ray jobs may crash. Please remove breakpoints before submitting jobs."
+            raise RuntimeError(
+                "⚠️ Breakpoints detected in the codebase. Please remove all breakpoints (e.g., 'breakpoint()', 'pdb.set_trace()', 'import pdb', etc.) before submitting jobs to Ray."
             )
         else:
-            log.info("No breakpoints detected.")
+            log.debug("No breakpoints detected.")
 
     def launch(
         self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int

@@ -96,7 +96,7 @@ def launch(
     pending_jobs, completed_runs = [], []
 
     # Check if GPU blocking is enabled in the config
-    enable_blocking = launcher.config.hydra.launcher.get("enable_blocking", False)
+    enable_blocking = launcher.config.hydra.launcher.enable_gpu_blocking
     # Discover other containers if blocking is enabled
     other_containers = []
     if enable_blocking:
