@@ -144,7 +144,7 @@ def launch(
                     )
 
         # Check if this is a dry run
-        if sweep_config.hydra.launcher.get("dryrun", False):
+        if sweep_config.hydra.launcher.dryrun:
             # Generate a random job ID similar to Ray's format for debugging
             import random
             import string

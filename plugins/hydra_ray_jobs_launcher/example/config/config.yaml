@@ -6,6 +6,7 @@ task: 1
 hydra:
   launcher:
     poll_jobs: False  # Whether to poll for job status
+    enable_gpu_blocking: True
     poll_interval: 0.1  # Seconds between polling for job status
     entrypoint_num_cpus: 1  # Number of CPUs to reserve per job
     entrypoint_num_gpus: 0  # Number of GPUs to reserve per job
